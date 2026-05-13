@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>부트로더 생성기 v2.0 Pro</title>
+    <title>부트로더 생성기 v2.2 Pro</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&display=swap');
@@ -33,7 +33,7 @@
         ::-webkit-scrollbar-thumb { background: #30363d; border-radius: 10px; }
 
         .viewer-content { max-height: 0; overflow: hidden; transition: max-height 0.3s ease-out; }
-        .viewer-content.open { max-height: 1200px; }
+        .viewer-content.open { max-height: 2000px; }
 
         #resizer-handle {
             height: 12px;
@@ -62,7 +62,7 @@
     <header class="sticky top-0 z-50 bg-[#0d1117]/90 backdrop-blur-md border-b border-gray-700 px-6 py-4 flex flex-col md:flex-row justify-between items-center gap-4">
         <div>
             <h1 class="text-2xl font-bold text-blue-400 flex items-center gap-2">
-                🛸 QEMU 클라우드 부트 테스터 <span class="text-[10px] bg-blue-900 text-blue-200 px-2 py-0.5 rounded-full uppercase">Pro v2.1</span>
+                🛸 QEMU 클라우드 부트 테스터 <span class="text-[10px] bg-blue-900 text-blue-200 px-2 py-0.5 rounded-full uppercase">Pro v2.2</span>
             </h1>
         </div>
         <div class="flex gap-3">
@@ -76,9 +76,7 @@
     </header>
 
     <main class="p-6 grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
-        
-        <!-- 왼쪽 사이드바: 설정 영역 -->
-        <div class="xl:col-span-4 space-y-6 xl:sticky xl:top-[100px]">
+        <div class="xl:col-span-4 space-y-6">
             <section class="code-block p-5 border-t-4 border-blue-500">
                 <h2 class="text-sm font-bold mb-4 text-blue-300 uppercase tracking-widest">1. 기본 시스템 설정</h2>
                 <div class="space-y-3 text-sm">
@@ -143,15 +141,37 @@
                 </div>
             </section>
 
-            <!-- QEMU 터미널 -->
+            <section class="code-block p-5 border-t-4 border-purple-500">
+                <h2 class="text-sm font-bold mb-4 text-purple-300 uppercase tracking-widest">4. 출력 및 디스플레이 설정</h2>
+                <div class="space-y-4 text-sm">
+                    <div class="flex flex-col gap-2">
+                        <label class="text-xs text-gray-500">메시지 출력 메커니즘</label>
+                        <div class="flex flex-col gap-2 bg-black/30 p-3 rounded border border-gray-800">
+                            <label class="flex items-center gap-3 cursor-pointer">
+                                <input type="radio" name="output-mode" value="bios" checked class="w-4 h-4 text-purple-600" onchange="generate()">
+                                <span>BIOS 인터럽트 (int 0x10)</span>
+                            </label>
+                            <label class="flex items-center gap-3 cursor-pointer">
+                                <input type="radio" name="output-mode" value="vmem" class="w-4 h-4 text-purple-600" onchange="generate()">
+                                <span>비디오 메모리 직접 쓰기 (0xB8000)</span>
+                            </label>
+                        </div>
+                    </div>
+                    <p class="text-[10px] text-gray-500 leading-relaxed italic">
+                        * 보호 모드 활성화 시 BIOS 인터럽트는 작동하지 않습니다. 자동으로 비디오 메모리 방식으로 대체될 수 있습니다.
+                    </p>
+                </div>
+            </section>
+
             <div class="terminal-container flex flex-col overflow-hidden">
                 <div class="bg-[#1c2128] px-4 py-2 text-[10px] flex justify-between items-center border-b border-gray-800">
-                    <span class="text-gray-400 font-bold uppercase tracking-widest">QEMU VIRTUAL MONITOR</span>
+                    <span class="text-gray-400 font-bold uppercase tracking-widest">QEMU 가상 모니터</span>
                     <span id="qemu-status" class="text-gray-600">준비됨</span>
                 </div>
                 <div id="qemu-screen" class="qemu-screen p-5 text-xs overflow-y-auto h-[180px]">
                     <div class="text-gray-700 italic font-sans">부팅 버튼을 눌러 테스트를 시작하세요.</div>
                 </div>
+                <!-- AI 에이전트 패널 -->
                 <div id="ai-panel" class="hidden bg-indigo-900/40 border-t border-indigo-500/50 p-4">
                     <div class="flex items-center gap-2 mb-2 text-indigo-300 font-bold text-xs">
                         <span class="w-2 h-2 rounded-full bg-indigo-400 animate-pulse"></span> AI 진단 에이전트
@@ -162,7 +182,6 @@
             </div>
         </div>
 
-        <!-- 오른쪽 컬럼: 에디터 및 뷰어 -->
         <div class="xl:col-span-8 flex flex-col space-y-4">
             <div id="editor-container" class="code-block flex flex-col overflow-hidden relative">
                 <div class="bg-[#1c2128] px-5 py-3 text-xs border-b border-gray-700 flex justify-between items-center shrink-0">
@@ -232,6 +251,7 @@
         const editorContainer = document.getElementById('editor-container');
         const resizer = document.getElementById('resizer-handle');
 
+        // 초기 높이 설정
         const INITIAL_HEIGHT = 650;
         editorContainer.style.height = INITIAL_HEIGHT + "px";
 
@@ -248,7 +268,6 @@
             const containerTop = editorContainer.getBoundingClientRect().top + window.scrollY;
             const newHeight = e.pageY - containerTop;
             
-            // 최소 높이 제한 300px
             if (newHeight > 300) {
                 editorContainer.style.height = newHeight + "px";
             }
@@ -265,6 +284,7 @@
         function generate() {
             if (isManualEdit) return; 
 
+            const outputMode = document.querySelector('input[name="output-mode"]:checked').value;
             const config = {
                 segment: document.getElementById('opt-segment').checked,
                 stack: document.getElementById('opt-stack').checked,
@@ -276,10 +296,17 @@
                 jump: document.getElementById('opt-jump').checked,
                 addr: document.getElementById('kernel-addr').value || "0x8000",
                 sectors: document.getElementById('kernel-sectors').value || "1",
-                msg: document.getElementById('kernel-msg').value || "KERNEL LOADED"
+                msg: document.getElementById('kernel-msg').value || "KERNEL LOADED",
+                outputMode: outputMode
             };
 
-            let code = "; --- Cloud Managed Bootloader v2.1 ---\n";
+            // 보호 모드인데 BIOS를 선택한 경우 자동 보정 (안내 문구용 체크)
+            let finalOutputMode = config.outputMode;
+            if (config.pm && config.outputMode === 'bios') {
+                finalOutputMode = 'vmem';
+            }
+
+            let code = "; --- Cloud Managed Bootloader v2.2 ---\n";
             code += "[org 0x7c00]\n\n";
             code += "start:\n";
             code += "    mov [BOOT_DRIVE], dl    ; 부트 드라이브 보존\n\n";
@@ -334,28 +361,51 @@
             if (config.error) {
                 code += "\npanic_disk: mov si, e_disk\n    call print\n    jmp $\n";
                 code += "panic_a20:  mov si, e_a20\n    call print\n    jmp $\n";
-                code += "print: mov ah, 0x0e\n.l: lodsb\n    or al, al\n    jz .d\n    int 0x10\n    jmp .l\n.d: ret\ne_disk db 'Disk Error!',0\ne_a20 db 'A20 Error!',0\n";
+            }
+            
+            code += "\n; --- 시스템 공용 출력 함수 (선택된 방식에 따라 생성됨) ---\nprint:\n";
+            if (finalOutputMode === 'bios') {
+                code += "    pusha\n    mov ah, 0x0e\n.loop:\n    lodsb\n    or al, al\n    jz .done\n    int 0x10\n    jmp .loop\n.done:\n    popa\n    ret\n";
+            } else {
+                // 비디오 메모리 직접 쓰기 방식
+                if (config.pm) {
+                    code += "    [bits 32]\n    pusha\n    mov edx, 0xb8000\n.loop:\n    lodsb\n    or al, al\n    jz .done\n    mov [edx], al\n    mov [edx+1], byte 0x04 ; 빨간색\n    add edx, 2\n    jmp .loop\n.done:\n    popa\n    ret\n";
+                } else {
+                    code += "    pusha\n    mov ax, 0xb800\n    mov es, ax\n    xor di, di\n.loop:\n    lodsb\n    or al, al\n    jz .done\n    mov [es:di], al\n    mov [es:di+1], byte 0x04 ; 리얼모드 빨간색\n    add di, 2\n    jmp .loop\n.done:\n    popa\n    ret\n";
+                }
+            }
+
+            if (config.error) {
+                code += "\ne_disk db 'Disk Error!',0\ne_a20 db 'A20 Error!',0\n";
             }
 
             code += "\nBOOT_DRIVE db 0\ntimes 510-($-$$) db 0\ndw 0xaa55\n";
             output.value = code;
 
-            updateKernelDoc(config);
+            updateKernelDoc(config, finalOutputMode);
             updateBuildDoc(config);
         }
 
-        function updateKernelDoc(config) {
+        function updateKernelDoc(config, finalMode) {
             let k = `; --- Target Kernel Message: "${config.msg}" ---\n`;
             k += `[org ${config.addr}]\nkernel_main:\n`;
+            
             if (config.pm) {
                 k += "    [bits 32]\n";
                 for(let i=0; i<config.msg.length; i++) {
                     k += `    mov [0xb8000 + ${i*2}], byte '${config.msg[i]}'\n    mov [0xb8001 + ${i*2}], byte 0x0b\n`;
                 }
             } else {
-                k += "    mov ah, 0x0e\n";
-                for(let i=0; i<config.msg.length; i++) {
-                    k += `    mov al, '${config.msg[i]}'\n    int 0x10\n`;
+                if (finalMode === 'bios') {
+                    k += "    mov ah, 0x0e\n";
+                    for(let i=0; i<config.msg.length; i++) {
+                        k += `    mov al, '${config.msg[i]}'\n    int 0x10\n`;
+                    }
+                } else {
+                    k += "    mov ax, 0xb800\n    mov es, ax\n    xor di, di\n";
+                    for(let i=0; i<config.msg.length; i++) {
+                        k += `    mov [es:di], byte '${config.msg[i]}'\n    mov [es:di+1], byte 0x0a\n    add di, 2\n`;
+                    }
                 }
             }
             k += "    jmp $";
@@ -412,7 +462,9 @@
             } else {
                 content.classList.add('open');
                 icon.textContent = "📖";
-                setTimeout(() => content.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 100);
+                setTimeout(() => {
+                    content.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                }, 100);
             }
         }
 
@@ -424,13 +476,15 @@
 
             const code = output.value;
             const currentMsg = document.getElementById('kernel-msg').value || "LOADED";
+            const isPM = code.includes("cr0") && code.includes("lgdt");
+            const outputMode = document.querySelector('input[name="output-mode"]:checked').value;
             
-            // 코드 무결성 검사
             const checks = {
                 load: code.includes("int 0x13"),
                 jump: /jmp\s+(0x[0-9a-fA-F]+|[0-9a-fA-F]+h|[0-9a-fA-F]+)/.test(code),
                 magic: code.includes("0xaa55") || code.includes("0xAA55"),
-                sectors: /mov\s+al,\s+([1-9][0-9]*)/.test(code)
+                sectors: /mov\s+al,\s+([1-9][0-9]*)/.test(code),
+                pmConflict: isPM && outputMode === 'bios'
             };
 
             setTimeout(() => {
@@ -439,23 +493,25 @@
                     qemuScreen.innerHTML += "<div class='text-blue-400'>[ 0.82 ] MBR 시그니처 확인 중...</div>";
                     
                     setTimeout(() => {
-                        if (checks.magic && checks.load && checks.jump && checks.sectors) {
+                        if (checks.magic && checks.load && checks.jump && checks.sectors && !checks.pmConflict) {
                             qemuScreen.innerHTML += `<div class='mt-6 text-2xl text-white font-bold tracking-widest animate-bounce'>${currentMsg}</div>`;
                             qemuScreen.innerHTML += "<div class='text-green-400 mt-2 font-bold'>✓ 커널 진입 및 메시지 출력 성공!</div>";
                             qemuStatus.textContent = "온라인";
                             qemuStatus.className = "text-green-500 font-bold text-[10px]";
                         } else {
-                            qemuScreen.innerHTML += "<div class='text-red-500 mt-4'>[ FATAL ] 부팅 불가능한 이미지입니다.</div>";
+                            qemuScreen.innerHTML += "<div class='text-red-500 mt-4'>[ FATAL ] 부팅 불가능하거나 화면 출력 실패.</div>";
                             qemuStatus.textContent = "크래시";
                             qemuStatus.className = "text-red-500 font-bold text-[10px]";
                             
                             aiPanel.classList.remove('hidden');
-                            let reason = "진단: ";
-                            if (!checks.magic) reason += "MBR 매직 넘버(0xAA55)가 없습니다. ";
-                            else if (!checks.load) reason += "디스크 읽기(Int 13h) 코드가 누락되었습니다. ";
-                            else if (!checks.sectors) reason += "읽어올 커널 섹터 수(AL)가 올바르지 않습니다. ";
-                            else if (!checks.jump) reason += "커널 주소로의 점프(JMP) 명령어가 없습니다. ";
-                            aiSuggestion.textContent = reason + "하단 버튼을 눌러 표준 코드로 복구하세요.";
+                            let reason = "진단 결과: ";
+                            if (!checks.magic) reason += "MBR 매직 넘버(0xAA55)가 누락되어 BIOS가 부팅 섹터로 인식하지 못합니다. ";
+                            else if (checks.pmConflict) reason += "32비트 보호 모드에서는 BIOS 인터럽트를 사용할 수 없습니다. 비디오 메모리 직접 쓰기 방식을 사용하세요. ";
+                            else if (!checks.load) reason += "디스크에서 커널을 읽어오는 Int 13h 호출이 없습니다. ";
+                            else if (!checks.sectors) reason += "읽어올 섹터 수(AL)가 설정되지 않았습니다. ";
+                            else if (!checks.jump) reason += "커널 메모리 주소로 점프하는 명령어가 없습니다. ";
+                            
+                            aiSuggestion.textContent = reason + "하단 버튼을 클릭하면 최적의 구성으로 코드를 자동 복구합니다.";
                         }
                     }, 1000);
                 }, 600);
@@ -465,9 +521,12 @@
         function applyAiFix() {
             isManualEdit = false;
             document.querySelectorAll('.checkbox-custom').forEach(cb => cb.checked = true);
+            if (document.getElementById('opt-pm').checked) {
+                document.querySelector('input[name="output-mode"][value="vmem"]').checked = true;
+            }
             generate();
             aiPanel.classList.add('hidden');
-            qemuScreen.innerHTML = "<div class='text-indigo-400'>AI가 누락된 시스템 호출과 점프 로직을 복구했습니다.</div>";
+            qemuScreen.innerHTML = "<div class='text-indigo-400'>AI가 충돌을 해결하고 안정적인 부트 코드를 재구성했습니다.</div>";
         }
 
         function copyCode() {
