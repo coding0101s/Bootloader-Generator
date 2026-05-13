@@ -7,11 +7,18 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&display=swap');
-        body { font-family: 'Fira Code', monospace; background-color: #0d1117; color: #c9d1d9; overflow-x: hidden; }
+        
+        body { 
+            font-family: 'Fira Code', monospace; 
+            background-color: #0d1117; 
+            color: #c9d1d9; 
+            overflow-x: hidden; 
+            scroll-behavior: smooth;
+        }
         
         .terminal-container { background-color: #000; border: 1px solid #30363d; border-radius: 8px; position: relative; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
         .qemu-screen { color: #00ff00; font-family: 'Courier New', Courier, monospace; min-height: 180px; background: radial-gradient(circle, #0a1a0a 0%, #000 100%); }
-        .code-block { background-color: #161b22; border: 1px solid #30363d; border-radius: 8px; transition: all 0.3s ease; }
+        .code-block { background-color: #161b22; border: 1px solid #30363d; border-radius: 8px; transition: border-color 0.3s ease; }
         .edit-active { border-color: #58a6ff !important; box-shadow: 0 0 15px rgba(88, 166, 255, 0.2); }
         .checkbox-custom:checked + label { color: #58a6ff; font-weight: bold; }
         
@@ -24,13 +31,38 @@
         ::-webkit-scrollbar { width: 8px; }
         ::-webkit-scrollbar-track { background: #0d1117; }
         ::-webkit-scrollbar-thumb { background: #30363d; border-radius: 10px; }
+
+        .viewer-content { max-height: 0; overflow: hidden; transition: max-height 0.3s ease-out; }
+        .viewer-content.open { max-height: 1200px; }
+
+        #resizer-handle {
+            height: 12px;
+            width: 100%;
+            cursor: ns-resize;
+            background: #21262d;
+            border-top: 1px solid #30363d;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: background 0.2s;
+            z-index: 10;
+        }
+        #resizer-handle:hover { background: #30363d; }
+        #resizer-handle::after {
+            content: "";
+            width: 40px;
+            height: 4px;
+            background: #484f58;
+            border-radius: 2px;
+        }
+        .resizing { border-color: #58a6ff !important; user-select: none; }
     </style>
 </head>
 <body class="p-0">
     <header class="sticky top-0 z-50 bg-[#0d1117]/90 backdrop-blur-md border-b border-gray-700 px-6 py-4 flex flex-col md:flex-row justify-between items-center gap-4">
         <div>
             <h1 class="text-2xl font-bold text-blue-400 flex items-center gap-2">
-                🛸 QEMU 클라우드 부트 테스터 <span class="text-[10px] bg-blue-900 text-blue-200 px-2 py-0.5 rounded-full uppercase">Pro v2.0</span>
+                🛸 QEMU 클라우드 부트 테스터 <span class="text-[10px] bg-blue-900 text-blue-200 px-2 py-0.5 rounded-full uppercase">Pro v2.1</span>
             </h1>
         </div>
         <div class="flex gap-3">
@@ -43,9 +75,10 @@
         </div>
     </header>
 
-    <main class="p-6 grid grid-cols-1 xl:grid-cols-12 gap-6">
-        <div class="xl:col-span-4 space-y-6">
-            <!-- 1. 기본 시스템 -->
+    <main class="p-6 grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
+        
+        <!-- 왼쪽 사이드바: 설정 영역 -->
+        <div class="xl:col-span-4 space-y-6 xl:sticky xl:top-[100px]">
             <section class="code-block p-5 border-t-4 border-blue-500">
                 <h2 class="text-sm font-bold mb-4 text-blue-300 uppercase tracking-widest">1. 기본 시스템 설정</h2>
                 <div class="space-y-3 text-sm">
@@ -64,7 +97,6 @@
                 </div>
             </section>
 
-            <!-- 2. 고급 기능 -->
             <section class="code-block p-5 border-t-4 border-yellow-500">
                 <h2 class="text-sm font-bold mb-4 text-yellow-300 uppercase tracking-widest">2. 고급 프로세서 설정</h2>
                 <div class="space-y-3 text-sm">
@@ -83,9 +115,8 @@
                 </div>
             </section>
 
-            <!-- 3. 커널 제어 -->
             <section class="code-block p-5 border-t-4 border-red-500">
-                <h2 class="text-sm font-bold mb-4 text-red-300 uppercase tracking-widest">3. 커널 로딩 및 실행</h2>
+                <h2 class="text-sm font-bold mb-4 text-red-300 uppercase tracking-widest">3. 커널 제어 및 메시지</h2>
                 <div class="space-y-4 text-sm">
                     <div class="grid grid-cols-2 gap-3">
                         <div>
@@ -112,7 +143,7 @@
                 </div>
             </section>
 
-            <!-- 4. 가상 터미널 -->
+            <!-- QEMU 터미널 -->
             <div class="terminal-container flex flex-col overflow-hidden">
                 <div class="bg-[#1c2128] px-4 py-2 text-[10px] flex justify-between items-center border-b border-gray-800">
                     <span class="text-gray-400 font-bold uppercase tracking-widest">QEMU VIRTUAL MONITOR</span>
@@ -121,8 +152,6 @@
                 <div id="qemu-screen" class="qemu-screen p-5 text-xs overflow-y-auto h-[180px]">
                     <div class="text-gray-700 italic font-sans">부팅 버튼을 눌러 테스트를 시작하세요.</div>
                 </div>
-                
-                <!-- AI 패널 -->
                 <div id="ai-panel" class="hidden bg-indigo-900/40 border-t border-indigo-500/50 p-4">
                     <div class="flex items-center gap-2 mb-2 text-indigo-300 font-bold text-xs">
                         <span class="w-2 h-2 rounded-full bg-indigo-400 animate-pulse"></span> AI 진단 에이전트
@@ -133,9 +162,10 @@
             </div>
         </div>
 
-        <div class="xl:col-span-8 flex flex-col h-[850px] space-y-4">
-            <div id="editor-container" class="code-block flex-1 flex flex-col overflow-hidden relative">
-                <div class="bg-[#1c2128] px-5 py-3 text-xs border-b border-gray-700 flex justify-between items-center">
+        <!-- 오른쪽 컬럼: 에디터 및 뷰어 -->
+        <div class="xl:col-span-8 flex flex-col space-y-4">
+            <div id="editor-container" class="code-block flex flex-col overflow-hidden relative">
+                <div class="bg-[#1c2128] px-5 py-3 text-xs border-b border-gray-700 flex justify-between items-center shrink-0">
                     <div class="flex items-center gap-3">
                         <div class="flex gap-1.5">
                             <span class="w-3 h-3 rounded-full bg-red-500/50"></span>
@@ -157,27 +187,35 @@
                     </div>
                 </div>
                 
-                <textarea id="output" readonly spellcheck="false" class="w-full h-full bg-transparent p-6 text-sm resize-none focus:outline-none leading-relaxed text-blue-100 font-['Fira_Code']"></textarea>
+                <textarea id="output" readonly spellcheck="false" class="flex-1 w-full bg-transparent p-6 text-sm resize-none focus:outline-none leading-relaxed text-blue-100 font-['Fira_Code']"></textarea>
                 
-                <div id="edit-status-bar" class="hidden bg-blue-900/20 px-4 py-1 text-[10px] text-blue-400 border-t border-blue-800/50">
+                <div id="edit-status-bar" class="hidden bg-blue-900/20 px-4 py-1 text-[10px] text-blue-400 border-t border-blue-800/50 shrink-0">
                     ● 수동 편집 모드 활성화됨: 체크박스 변경이 실시간으로 적용되지 않습니다.
                 </div>
+
+                <!-- 수직 리사이저 핸들 -->
+                <div id="resizer-handle" title="창 크기 조절"></div>
             </div>
 
-            <!-- 하단 뷰어 영역 -->
-            <div class="space-y-4">
-                <div>
-                    <button onclick="toggleView('kernel-view')" class="text-[11px] text-gray-500 hover:text-blue-400 transition flex items-center gap-2">
-                        <span>[+] 타겟 커널 코드 보기</span>
+            <div class="space-y-4 pb-12">
+                <div class="code-block border-l-4 border-green-500">
+                    <button onclick="toggleView('kernel-view-container')" class="w-full px-5 py-3 flex justify-between items-center text-[11px] font-bold text-gray-400 hover:text-green-400 transition">
+                        <span>[+] 타겟 커널 코드 보기 (kernel.asm)</span>
+                        <span id="kernel-view-container-icon">📂</span>
                     </button>
-                    <pre id="kernel-view" class="hidden mt-2 code-block p-4 text-[11px] text-gray-400 overflow-x-auto"></pre>
+                    <div id="kernel-view-container" class="viewer-content">
+                        <pre id="kernel-view" class="p-6 text-[12px] bg-black/50 text-green-700 border-t border-gray-800 overflow-x-auto"></pre>
+                    </div>
                 </div>
                 
-                <div>
-                    <button onclick="toggleView('build-view')" class="text-[11px] text-gray-500 hover:text-blue-400 transition flex items-center gap-2">
-                        <span>[+] 빌드 명령어 보기</span>
+                <div class="code-block border-l-4 border-gray-500">
+                    <button onclick="toggleView('build-view-container')" class="w-full px-5 py-3 flex justify-between items-center text-[11px] font-bold text-gray-400 hover:text-blue-400 transition">
+                        <span>[+] 빌드 명령어 보기 (Build Script)</span>
+                        <span id="build-view-container-icon">🛠️</span>
                     </button>
-                    <pre id="build-view" class="hidden mt-2 code-block p-4 text-[11px] text-green-700/80 overflow-x-auto"></pre>
+                    <div id="build-view-container" class="viewer-content">
+                        <pre id="build-view" class="p-6 text-[12px] bg-black/50 text-gray-400 border-t border-gray-800 overflow-x-auto"></pre>
+                    </div>
                 </div>
             </div>
         </div>
@@ -191,6 +229,38 @@
         const qemuStatus = document.getElementById('qemu-status');
         const aiPanel = document.getElementById('ai-panel');
         const aiSuggestion = document.getElementById('ai-suggestion');
+        const editorContainer = document.getElementById('editor-container');
+        const resizer = document.getElementById('resizer-handle');
+
+        const INITIAL_HEIGHT = 650;
+        editorContainer.style.height = INITIAL_HEIGHT + "px";
+
+        let isResizing = false;
+        resizer.addEventListener('mousedown', function(e) {
+            isResizing = true;
+            document.body.style.cursor = 'ns-resize';
+            editorContainer.classList.add('resizing');
+            e.preventDefault();
+        });
+
+        document.addEventListener('mousemove', function(e) {
+            if (!isResizing) return;
+            const containerTop = editorContainer.getBoundingClientRect().top + window.scrollY;
+            const newHeight = e.pageY - containerTop;
+            
+            // 최소 높이 제한 300px
+            if (newHeight > 300) {
+                editorContainer.style.height = newHeight + "px";
+            }
+        });
+
+        document.addEventListener('mouseup', function() {
+            if (isResizing) {
+                isResizing = false;
+                document.body.style.cursor = 'default';
+                editorContainer.classList.remove('resizing');
+            }
+        });
 
         function generate() {
             if (isManualEdit) return; 
@@ -209,7 +279,7 @@
                 msg: document.getElementById('kernel-msg').value || "KERNEL LOADED"
             };
 
-            let code = "; --- Cloud Managed Bootloader v2.0 ---\n";
+            let code = "; --- Cloud Managed Bootloader v2.1 ---\n";
             code += "[org 0x7c00]\n\n";
             code += "start:\n";
             code += "    mov [BOOT_DRIVE], dl    ; 부트 드라이브 보존\n\n";
@@ -234,9 +304,9 @@
             }
 
             if (config.load) {
-                const addr = parseInt(config.addr, 16);
-                const seg = (addr >> 4).toString(16);
-                const off = (addr & 0xF).toString(16);
+                const addrVal = parseInt(config.addr, 16);
+                const seg = (addrVal >> 4).toString(16);
+                const off = (addrVal & 0xF).toString(16);
                 code += `\n    ; --- 커널 로딩 (${config.sectors} 섹터) ---\n`;
                 code += `    mov ax, 0x${seg}\n    mov es, ax\n    mov bx, 0x${off}\n`;
                 code += "    mov ah, 0x02\n";
@@ -275,7 +345,8 @@
         }
 
         function updateKernelDoc(config) {
-            let k = `[org ${config.addr}]\nkernel_main:\n`;
+            let k = `; --- Target Kernel Message: "${config.msg}" ---\n`;
+            k += `[org ${config.addr}]\nkernel_main:\n`;
             if (config.pm) {
                 k += "    [bits 32]\n";
                 for(let i=0; i<config.msg.length; i++) {
@@ -292,13 +363,13 @@
         }
 
         function updateBuildDoc(config) {
-            let b = `# 1. 소스 컴파일\n`;
+            let b = `# 1. 어셈블러(nasm)를 통한 바이너리 생성\n`;
             b += `nasm -f bin bootloader.asm -o bootloader.bin\n`;
             b += `nasm -f bin kernel.asm -o kernel.bin\n\n`;
-            b += `# 2. 이미지 병합 (커널 ${config.sectors}섹터 포함)\n`;
+            b += `# 2. 이미지 병합 (MBR + 커널 ${config.sectors}개 섹터)\n`;
             b += `cat bootloader.bin kernel.bin > os-image.bin\n`;
-            b += `truncate -s 5120 os-image.bin # 이미지 크기 맞춤\n\n`;
-            b += `# 3. QEMU 실행\n`;
+            b += `truncate -s 5120 os-image.bin # 패딩 추가 (5KB)\n\n`;
+            b += `# 3. QEMU 가상머신 실행\n`;
             b += `qemu-system-x86_64 -drive format=raw,file=os-image.bin`;
             document.getElementById('build-view').textContent = b;
         }
@@ -308,16 +379,16 @@
             backupCode = output.value;
             output.readOnly = false;
             output.focus();
-            document.getElementById('editor-container').classList.add('edit-active');
+            editorContainer.classList.add('edit-active');
             document.getElementById('edit-status-bar').classList.remove('hidden');
             document.getElementById('default-actions').classList.add('hidden');
             document.getElementById('edit-actions').classList.remove('hidden');
         }
 
         function saveChanges() {
-            isManualEdit = true; // 저장 후에도 즉시 체크박스에 의해 덮어씌워지지 않게 유지
+            isManualEdit = true;
             output.readOnly = true;
-            document.getElementById('editor-container').classList.remove('edit-active');
+            editorContainer.classList.remove('edit-active');
             document.getElementById('edit-status-bar').classList.add('hidden');
             document.getElementById('default-actions').classList.remove('hidden');
             document.getElementById('edit-actions').classList.add('hidden');
@@ -330,6 +401,21 @@
             generate();
         }
 
+        function toggleView(id) {
+            const content = document.getElementById(id);
+            const icon = document.getElementById(id + '-icon');
+            const isOpen = content.classList.contains('open');
+            
+            if (isOpen) {
+                content.classList.remove('open');
+                icon.textContent = "📂";
+            } else {
+                content.classList.add('open');
+                icon.textContent = "📖";
+                setTimeout(() => content.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 100);
+            }
+        }
+
         function runQemuTest() {
             qemuScreen.innerHTML = "<div class='text-white'>[ 0.00 ] SeaBIOS 로딩 중...</div>";
             qemuStatus.textContent = "부팅 중...";
@@ -339,6 +425,7 @@
             const code = output.value;
             const currentMsg = document.getElementById('kernel-msg').value || "LOADED";
             
+            // 코드 무결성 검사
             const checks = {
                 load: code.includes("int 0x13"),
                 jump: /jmp\s+(0x[0-9a-fA-F]+|[0-9a-fA-F]+h|[0-9a-fA-F]+)/.test(code),
@@ -353,8 +440,8 @@
                     
                     setTimeout(() => {
                         if (checks.magic && checks.load && checks.jump && checks.sectors) {
-                            qemuScreen.innerHTML += `<div class='mt-6 text-3xl text-white font-bold tracking-widest animate-bounce'>${currentMsg}</div>`;
-                            qemuScreen.innerHTML += "<div class='text-green-400 mt-2 font-bold'>✓ 커널 진입 성공!</div>";
+                            qemuScreen.innerHTML += `<div class='mt-6 text-2xl text-white font-bold tracking-widest animate-bounce'>${currentMsg}</div>`;
+                            qemuScreen.innerHTML += "<div class='text-green-400 mt-2 font-bold'>✓ 커널 진입 및 메시지 출력 성공!</div>";
                             qemuStatus.textContent = "온라인";
                             qemuStatus.className = "text-green-500 font-bold text-[10px]";
                         } else {
@@ -366,8 +453,8 @@
                             let reason = "진단: ";
                             if (!checks.magic) reason += "MBR 매직 넘버(0xAA55)가 없습니다. ";
                             else if (!checks.load) reason += "디스크 읽기(Int 13h) 코드가 누락되었습니다. ";
-                            else if (!checks.sectors) reason += "읽어올 커널 섹터 수가 설정되지 않았습니다. ";
-                            else if (!checks.jump) reason += "커널 주소로의 점프(JMP) 명령어가 부실합니다. ";
+                            else if (!checks.sectors) reason += "읽어올 커널 섹터 수(AL)가 올바르지 않습니다. ";
+                            else if (!checks.jump) reason += "커널 주소로의 점프(JMP) 명령어가 없습니다. ";
                             aiSuggestion.textContent = reason + "하단 버튼을 눌러 표준 코드로 복구하세요.";
                         }
                     }, 1000);
@@ -383,18 +470,12 @@
             qemuScreen.innerHTML = "<div class='text-indigo-400'>AI가 누락된 시스템 호출과 점프 로직을 복구했습니다.</div>";
         }
 
-        function toggleView(id) {
-            const el = document.getElementById(id);
-            el.classList.toggle('hidden');
-        }
-
         function copyCode() {
             output.select();
             document.execCommand('copy');
             const btn = document.getElementById('copy-btn');
-            const prevText = btn.textContent;
             btn.textContent = "복사됨!";
-            setTimeout(() => btn.textContent = prevText, 1500);
+            setTimeout(() => btn.textContent = "복사", 1500);
         }
 
         function downloadCode() {
