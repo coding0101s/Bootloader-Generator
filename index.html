@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>부트로더 생성기 v2.0 Pro</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&display=swap');
+        body { font-family: 'Fira Code', monospace; background-color: #0d1117; color: #c9d1d9; overflow-x: hidden; }
+        
+        .terminal-container { background-color: #000; border: 1px solid #30363d; border-radius: 8px; position: relative; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        .qemu-screen { color: #00ff00; font-family: 'Courier New', Courier, monospace; min-height: 180px; background: radial-gradient(circle, #0a1a0a 0%, #000 100%); }
+        .code-block { background-color: #161b22; border: 1px solid #30363d; border-radius: 8px; transition: all 0.3s ease; }
+        .edit-active { border-color: #58a6ff !important; box-shadow: 0 0 15px rgba(88, 166, 255, 0.2); }
+        .checkbox-custom:checked + label { color: #58a6ff; font-weight: bold; }
+        
+        .btn-primary { background: linear-gradient(135deg, #238636 0%, #2ea043 100%); transition: transform 0.1s; }
+        .btn-primary:active { transform: scale(0.98); }
+        
+        .blink { animation: blinker 1s linear infinite; }
+        @keyframes blinker { 50% { opacity: 0; } }
+        
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #0d1117; }
+        ::-webkit-scrollbar-thumb { background: #30363d; border-radius: 10px; }
+    </style>
+</head>
+<body class="p-0">
+    <header class="sticky top-0 z-50 bg-[#0d1117]/90 backdrop-blur-md border-b border-gray-700 px-6 py-4 flex flex-col md:flex-row justify-between items-center gap-4">
+        <div>
+            <h1 class="text-2xl font-bold text-blue-400 flex items-center gap-2">
+                🛸 QEMU 클라우드 부트 테스터 <span class="text-[10px] bg-blue-900 text-blue-200 px-2 py-0.5 rounded-full uppercase">Pro v2.0</span>
+            </h1>
+        </div>
+        <div class="flex gap-3">
+            <button onclick="runQemuTest()" class="btn-primary text-white px-5 py-2 rounded-lg text-sm font-bold shadow-lg flex items-center gap-2">
+                ▶ QEMU 실행
+            </button>
+            <button onclick="downloadCode()" class="bg-gray-800 hover:bg-gray-700 text-gray-200 px-5 py-2 rounded-lg text-sm font-bold border border-gray-600 transition">
+                소스 다운로드
+            </button>
+        </div>
+    </header>
+
+    <main class="p-6 grid grid-cols-1 xl:grid-cols-12 gap-6">
+        <div class="xl:col-span-4 space-y-6">
+            <!-- 1. 기본 시스템 -->
+            <section class="code-block p-5 border-t-4 border-blue-500">
+                <h2 class="text-sm font-bold mb-4 text-blue-300 uppercase tracking-widest">1. 기본 시스템 설정</h2>
+                <div class="space-y-3 text-sm">
+                    <div class="flex items-center gap-3">
+                        <input type="checkbox" id="opt-segment" checked class="w-4 h-4 checkbox-custom" onchange="generate()">
+                        <label for="opt-segment">데이터 세그먼트 초기화</label>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <input type="checkbox" id="opt-stack" checked class="w-4 h-4 checkbox-custom" onchange="generate()">
+                        <label for="opt-stack">스택 포인터 설정 (0x7C00)</label>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <input type="checkbox" id="opt-clear" class="w-4 h-4 checkbox-custom" onchange="generate()">
+                        <label for="opt-clear">화면 초기화 (BIOS 0x03 모드)</label>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 2. 고급 기능 -->
+            <section class="code-block p-5 border-t-4 border-yellow-500">
+                <h2 class="text-sm font-bold mb-4 text-yellow-300 uppercase tracking-widest">2. 고급 프로세서 설정</h2>
+                <div class="space-y-3 text-sm">
+                    <div class="flex items-center gap-3">
+                        <input type="checkbox" id="opt-a20" class="w-4 h-4 checkbox-custom" onchange="generate()">
+                        <label for="opt-a20">A20 게이트 활성화 (BIOS 호출)</label>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <input type="checkbox" id="opt-pm" class="w-4 h-4 checkbox-custom" onchange="generate()">
+                        <label for="opt-pm">32비트 보호 모드 진입 (GDT)</label>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <input type="checkbox" id="opt-error" class="w-4 h-4 checkbox-custom" onchange="generate()">
+                        <label for="opt-error">시스템 예외 핸들러 (패닉 로직)</label>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 3. 커널 제어 -->
+            <section class="code-block p-5 border-t-4 border-red-500">
+                <h2 class="text-sm font-bold mb-4 text-red-300 uppercase tracking-widest">3. 커널 로딩 및 실행</h2>
+                <div class="space-y-4 text-sm">
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs text-gray-500 mb-1">대상 주소 (Hex)</label>
+                            <input type="text" id="kernel-addr" value="0x8000" class="bg-black border border-gray-700 rounded px-3 py-1.5 w-full text-blue-400 outline-none focus:border-blue-500" oninput="generate()">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-gray-500 mb-1">읽을 섹터 수 (AL)</label>
+                            <input type="number" id="kernel-sectors" value="1" min="1" max="100" class="bg-black border border-gray-700 rounded px-3 py-1.5 w-full text-yellow-400 outline-none focus:border-yellow-500" oninput="generate()">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-500 mb-1">커널 출력 메시지</label>
+                        <input type="text" id="kernel-msg" value="KERNEL LOADED" maxlength="20" class="bg-black border border-gray-700 rounded px-3 py-1.5 w-full text-green-400 outline-none focus:border-green-500" oninput="generate()">
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <input type="checkbox" id="opt-load" checked class="w-4 h-4 checkbox-custom" onchange="generate()">
+                        <label for="opt-load">디스크에서 커널 읽기 (Int 13h)</label>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <input type="checkbox" id="opt-jump" checked class="w-4 h-4 checkbox-custom" onchange="generate()">
+                        <label for="opt-jump">커널 진입점으로 제어권 전환</label>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 4. 가상 터미널 -->
+            <div class="terminal-container flex flex-col overflow-hidden">
+                <div class="bg-[#1c2128] px-4 py-2 text-[10px] flex justify-between items-center border-b border-gray-800">
+                    <span class="text-gray-400 font-bold uppercase tracking-widest">QEMU VIRTUAL MONITOR</span>
+                    <span id="qemu-status" class="text-gray-600">준비됨</span>
+                </div>
+                <div id="qemu-screen" class="qemu-screen p-5 text-xs overflow-y-auto h-[180px]">
+                    <div class="text-gray-700 italic font-sans">부팅 버튼을 눌러 테스트를 시작하세요.</div>
+                </div>
+                
+                <!-- AI 패널 -->
+                <div id="ai-panel" class="hidden bg-indigo-900/40 border-t border-indigo-500/50 p-4">
+                    <div class="flex items-center gap-2 mb-2 text-indigo-300 font-bold text-xs">
+                        <span class="w-2 h-2 rounded-full bg-indigo-400 animate-pulse"></span> AI 진단 에이전트
+                    </div>
+                    <p id="ai-suggestion" class="text-[11px] text-indigo-100 mb-3 leading-relaxed"></p>
+                    <button onclick="applyAiFix()" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] py-2 rounded font-bold transition">AI 자동 수정 적용</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="xl:col-span-8 flex flex-col h-[850px] space-y-4">
+            <div id="editor-container" class="code-block flex-1 flex flex-col overflow-hidden relative">
+                <div class="bg-[#1c2128] px-5 py-3 text-xs border-b border-gray-700 flex justify-between items-center">
+                    <div class="flex items-center gap-3">
+                        <div class="flex gap-1.5">
+                            <span class="w-3 h-3 rounded-full bg-red-500/50"></span>
+                            <span class="w-3 h-3 rounded-full bg-yellow-500/50"></span>
+                            <span class="w-3 h-3 rounded-full bg-green-500/50"></span>
+                        </div>
+                        <span class="font-bold text-gray-400 ml-2 uppercase tracking-widest">bootloader.asm</span>
+                    </div>
+                    
+                    <div class="flex items-center gap-2">
+                        <div id="default-actions" class="flex gap-2">
+                            <button id="edit-btn" onclick="enterEditMode()" class="bg-gray-700 hover:bg-gray-600 text-gray-200 px-4 py-1.5 rounded text-[11px] font-bold transition">편집</button>
+                            <button id="copy-btn" onclick="copyCode()" class="bg-gray-700 hover:bg-gray-600 text-gray-200 px-4 py-1.5 rounded text-[11px] font-bold transition">복사</button>
+                        </div>
+                        <div id="edit-actions" class="hidden flex gap-2">
+                            <button onclick="saveChanges()" class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-1.5 rounded text-[11px] font-bold transition shadow-lg shadow-blue-900/20">저장</button>
+                            <button onclick="cancelChanges()" class="bg-red-900/40 hover:bg-red-800 text-red-200 px-4 py-1.5 rounded text-[11px] font-bold transition border border-red-500/30">취소</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <textarea id="output" readonly spellcheck="false" class="w-full h-full bg-transparent p-6 text-sm resize-none focus:outline-none leading-relaxed text-blue-100 font-['Fira_Code']"></textarea>
+                
+                <div id="edit-status-bar" class="hidden bg-blue-900/20 px-4 py-1 text-[10px] text-blue-400 border-t border-blue-800/50">
+                    ● 수동 편집 모드 활성화됨: 체크박스 변경이 실시간으로 적용되지 않습니다.
+                </div>
+            </div>
+
+            <!-- 하단 뷰어 영역 -->
+            <div class="space-y-4">
+                <div>
+                    <button onclick="toggleView('kernel-view')" class="text-[11px] text-gray-500 hover:text-blue-400 transition flex items-center gap-2">
+                        <span>[+] 타겟 커널 코드 보기</span>
+                    </button>
+                    <pre id="kernel-view" class="hidden mt-2 code-block p-4 text-[11px] text-gray-400 overflow-x-auto"></pre>
+                </div>
+                
+                <div>
+                    <button onclick="toggleView('build-view')" class="text-[11px] text-gray-500 hover:text-blue-400 transition flex items-center gap-2">
+                        <span>[+] 빌드 명령어 보기</span>
+                    </button>
+                    <pre id="build-view" class="hidden mt-2 code-block p-4 text-[11px] text-green-700/80 overflow-x-auto"></pre>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        let isManualEdit = false;
+        let backupCode = "";
+        const output = document.getElementById('output');
+        const qemuScreen = document.getElementById('qemu-screen');
+        const qemuStatus = document.getElementById('qemu-status');
+        const aiPanel = document.getElementById('ai-panel');
+        const aiSuggestion = document.getElementById('ai-suggestion');
+
+        function generate() {
+            if (isManualEdit) return; 
+
+            const config = {
+                segment: document.getElementById('opt-segment').checked,
+                stack: document.getElementById('opt-stack').checked,
+                clear: document.getElementById('opt-clear').checked,
+                a20: document.getElementById('opt-a20').checked,
+                pm: document.getElementById('opt-pm').checked,
+                error: document.getElementById('opt-error').checked,
+                load: document.getElementById('opt-load').checked,
+                jump: document.getElementById('opt-jump').checked,
+                addr: document.getElementById('kernel-addr').value || "0x8000",
+                sectors: document.getElementById('kernel-sectors').value || "1",
+                msg: document.getElementById('kernel-msg').value || "KERNEL LOADED"
+            };
+
+            let code = "; --- Cloud Managed Bootloader v2.0 ---\n";
+            code += "[org 0x7c00]\n\n";
+            code += "start:\n";
+            code += "    mov [BOOT_DRIVE], dl    ; 부트 드라이브 보존\n\n";
+
+            if (config.segment) {
+                code += "    xor ax, ax              ; 세그먼트 초기화\n";
+                code += "    mov ds, ax\n    mov es, ax\n";
+            }
+            if (config.stack) {
+                code += "    mov bp, 0x7c00          ; 스택 설정\n";
+                code += "    mov sp, bp\n";
+            }
+            if (config.clear) {
+                code += "    mov ax, 0x03            ; 비디오 모드 설정\n";
+                code += "    int 0x10\n";
+            }
+
+            if (config.a20) {
+                code += "\n    ; --- A20 Gate 활성화 ---\n";
+                code += "    mov ax, 0x2401\n    int 0x15\n";
+                if (config.error) code += "    jc panic_a20\n";
+            }
+
+            if (config.load) {
+                const addr = parseInt(config.addr, 16);
+                const seg = (addr >> 4).toString(16);
+                const off = (addr & 0xF).toString(16);
+                code += `\n    ; --- 커널 로딩 (${config.sectors} 섹터) ---\n`;
+                code += `    mov ax, 0x${seg}\n    mov es, ax\n    mov bx, 0x${off}\n`;
+                code += "    mov ah, 0x02\n";
+                code += `    mov al, ${config.sectors}               ; 읽을 섹터 수\n`;
+                code += "    mov ch, 0\n    mov dh, 0\n    mov cl, 2\n    mov dl, [BOOT_DRIVE]\n    int 0x13\n";
+                if (config.error) code += "    jc panic_disk\n";
+            }
+
+            if (config.pm) {
+                code += "\n    ; --- 보호 모드 전환 ---\n";
+                code += "    cli\n    lgdt [gdt_descriptor]\n    mov eax, cr0\n    or eax, 0x1\n    mov cr0, eax\n    jmp CODE_SEG:init_pm\n";
+            } else if (config.jump) {
+                code += `\n    jmp ${config.addr}\n`;
+            }
+
+            code += "\n    jmp $                   ; 대기 모드\n";
+
+            if (config.pm) {
+                code += "\n[bits 32]\ninit_pm:\n    mov ax, DATA_SEG\n    mov ds, ax\n    mov ss, ax\n";
+                if (config.jump) code += `    jmp ${config.addr}\n`;
+                else code += "    jmp $\n";
+                code += "\ngdt_start:\n    dq 0x0\ngdt_code:\n    dw 0xffff, 0x0\n    db 0x0, 10011010b, 11001111b, 0x0\ngdt_data:\n    dw 0xffff, 0x0\n    db 0x0, 10010010b, 11001111b, 0x0\ngdt_end:\ngdt_descriptor:\n    dw gdt_end - gdt_start - 1\n    dd gdt_start\nCODE_SEG equ gdt_code - gdt_start\nDATA_SEG equ gdt_data - gdt_start\n";
+            }
+
+            if (config.error) {
+                code += "\npanic_disk: mov si, e_disk\n    call print\n    jmp $\n";
+                code += "panic_a20:  mov si, e_a20\n    call print\n    jmp $\n";
+                code += "print: mov ah, 0x0e\n.l: lodsb\n    or al, al\n    jz .d\n    int 0x10\n    jmp .l\n.d: ret\ne_disk db 'Disk Error!',0\ne_a20 db 'A20 Error!',0\n";
+            }
+
+            code += "\nBOOT_DRIVE db 0\ntimes 510-($-$$) db 0\ndw 0xaa55\n";
+            output.value = code;
+
+            updateKernelDoc(config);
+            updateBuildDoc(config);
+        }
+
+        function updateKernelDoc(config) {
+            let k = `[org ${config.addr}]\nkernel_main:\n`;
+            if (config.pm) {
+                k += "    [bits 32]\n";
+                for(let i=0; i<config.msg.length; i++) {
+                    k += `    mov [0xb8000 + ${i*2}], byte '${config.msg[i]}'\n    mov [0xb8001 + ${i*2}], byte 0x0b\n`;
+                }
+            } else {
+                k += "    mov ah, 0x0e\n";
+                for(let i=0; i<config.msg.length; i++) {
+                    k += `    mov al, '${config.msg[i]}'\n    int 0x10\n`;
+                }
+            }
+            k += "    jmp $";
+            document.getElementById('kernel-view').textContent = k;
+        }
+
+        function updateBuildDoc(config) {
+            let b = `# 1. 소스 컴파일\n`;
+            b += `nasm -f bin bootloader.asm -o bootloader.bin\n`;
+            b += `nasm -f bin kernel.asm -o kernel.bin\n\n`;
+            b += `# 2. 이미지 병합 (커널 ${config.sectors}섹터 포함)\n`;
+            b += `cat bootloader.bin kernel.bin > os-image.bin\n`;
+            b += `truncate -s 5120 os-image.bin # 이미지 크기 맞춤\n\n`;
+            b += `# 3. QEMU 실행\n`;
+            b += `qemu-system-x86_64 -drive format=raw,file=os-image.bin`;
+            document.getElementById('build-view').textContent = b;
+        }
+
+        function enterEditMode() {
+            isManualEdit = true;
+            backupCode = output.value;
+            output.readOnly = false;
+            output.focus();
+            document.getElementById('editor-container').classList.add('edit-active');
+            document.getElementById('edit-status-bar').classList.remove('hidden');
+            document.getElementById('default-actions').classList.add('hidden');
+            document.getElementById('edit-actions').classList.remove('hidden');
+        }
+
+        function saveChanges() {
+            isManualEdit = true; // 저장 후에도 즉시 체크박스에 의해 덮어씌워지지 않게 유지
+            output.readOnly = true;
+            document.getElementById('editor-container').classList.remove('edit-active');
+            document.getElementById('edit-status-bar').classList.add('hidden');
+            document.getElementById('default-actions').classList.remove('hidden');
+            document.getElementById('edit-actions').classList.add('hidden');
+        }
+
+        function cancelChanges() {
+            output.value = backupCode;
+            saveChanges();
+            isManualEdit = false;
+            generate();
+        }
+
+        function runQemuTest() {
+            qemuScreen.innerHTML = "<div class='text-white'>[ 0.00 ] SeaBIOS 로딩 중...</div>";
+            qemuStatus.textContent = "부팅 중...";
+            qemuStatus.className = "text-yellow-500 blink font-bold text-[10px]";
+            aiPanel.classList.add('hidden');
+
+            const code = output.value;
+            const currentMsg = document.getElementById('kernel-msg').value || "LOADED";
+            
+            const checks = {
+                load: code.includes("int 0x13"),
+                jump: /jmp\s+(0x[0-9a-fA-F]+|[0-9a-fA-F]+h|[0-9a-fA-F]+)/.test(code),
+                magic: code.includes("0xaa55") || code.includes("0xAA55"),
+                sectors: /mov\s+al,\s+([1-9][0-9]*)/.test(code)
+            };
+
+            setTimeout(() => {
+                qemuScreen.innerHTML += "<div>[ 0.45 ] 디스크 장치(0x80) 탐색 완료.</div>";
+                setTimeout(() => {
+                    qemuScreen.innerHTML += "<div class='text-blue-400'>[ 0.82 ] MBR 시그니처 확인 중...</div>";
+                    
+                    setTimeout(() => {
+                        if (checks.magic && checks.load && checks.jump && checks.sectors) {
+                            qemuScreen.innerHTML += `<div class='mt-6 text-3xl text-white font-bold tracking-widest animate-bounce'>${currentMsg}</div>`;
+                            qemuScreen.innerHTML += "<div class='text-green-400 mt-2 font-bold'>✓ 커널 진입 성공!</div>";
+                            qemuStatus.textContent = "온라인";
+                            qemuStatus.className = "text-green-500 font-bold text-[10px]";
+                        } else {
+                            qemuScreen.innerHTML += "<div class='text-red-500 mt-4'>[ FATAL ] 부팅 불가능한 이미지입니다.</div>";
+                            qemuStatus.textContent = "크래시";
+                            qemuStatus.className = "text-red-500 font-bold text-[10px]";
+                            
+                            aiPanel.classList.remove('hidden');
+                            let reason = "진단: ";
+                            if (!checks.magic) reason += "MBR 매직 넘버(0xAA55)가 없습니다. ";
+                            else if (!checks.load) reason += "디스크 읽기(Int 13h) 코드가 누락되었습니다. ";
+                            else if (!checks.sectors) reason += "읽어올 커널 섹터 수가 설정되지 않았습니다. ";
+                            else if (!checks.jump) reason += "커널 주소로의 점프(JMP) 명령어가 부실합니다. ";
+                            aiSuggestion.textContent = reason + "하단 버튼을 눌러 표준 코드로 복구하세요.";
+                        }
+                    }, 1000);
+                }, 600);
+            }, 500);
+        }
+
+        function applyAiFix() {
+            isManualEdit = false;
+            document.querySelectorAll('.checkbox-custom').forEach(cb => cb.checked = true);
+            generate();
+            aiPanel.classList.add('hidden');
+            qemuScreen.innerHTML = "<div class='text-indigo-400'>AI가 누락된 시스템 호출과 점프 로직을 복구했습니다.</div>";
+        }
+
+        function toggleView(id) {
+            const el = document.getElementById(id);
+            el.classList.toggle('hidden');
+        }
+
+        function copyCode() {
+            output.select();
+            document.execCommand('copy');
+            const btn = document.getElementById('copy-btn');
+            const prevText = btn.textContent;
+            btn.textContent = "복사됨!";
+            setTimeout(() => btn.textContent = prevText, 1500);
+        }
+
+        function downloadCode() {
+            const blob = new Blob([output.value], { type: 'text/plain' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = 'bootloader.asm'; a.click();
+        }
+
+        window.onload = generate;
+    </script>
+</body>
+</html>
